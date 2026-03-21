@@ -1,6 +1,10 @@
-﻿namespace Warehousepro.API.Services.Interfaces
+﻿using WarehousePro.API.DTOs.Auth;
+
+namespace WarehousePro.API.Services.Interfaces
 {
-	public class IAuthService
+	public interface IAuthService
 	{
+		Task<LoginResponseDto?> LoginAsync(LoginRequestDto dto);
+		Task<bool> ChangePasswordAsync(int userId, ChangePasswordDto dto);
 	}
 }

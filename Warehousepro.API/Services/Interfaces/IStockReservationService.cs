@@ -1,6 +1,13 @@
-﻿namespace Warehousepro.API.Services.Interfaces
+﻿using WarehousePro.API.DTOs.Inventory;
+
+namespace WarehousePro.API.Services.Interfaces
 {
-	public class IStockReservationService
+	public interface IStockReservationService
 	{
+		Task<List<StockReservationResponseDto>> GetAllAsync();
+		Task<List<StockReservationResponseDto>> GetByItemIdAsync(int itemId);
+		Task<StockReservationResponseDto?> GetByIdAsync(int id);
+		Task<StockReservationResponseDto> CreateAsync(StockReservationCreateDto dto);
+		Task<bool> DeleteAsync(int id);
 	}
 }
