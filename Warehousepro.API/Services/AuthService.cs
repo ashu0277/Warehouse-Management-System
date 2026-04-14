@@ -52,6 +52,9 @@ namespace WarehousePro.API.Services
 
 		{
 
+
+		
+
 			var user = await _context.Users
 
 				.FirstOrDefaultAsync(u => u.Email == dto.Email && !u.IsDeleted);

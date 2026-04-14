@@ -58,7 +58,7 @@ namespace WarehousePro.API.Services
 
 			return await _context.AuditLogs
 
-				.Include(a => a.User)
+				//.Include(a => a.User)
 
 				.OrderByDescending(a => a.Timestamp)
 
@@ -74,7 +74,7 @@ namespace WarehousePro.API.Services
 
 				.Where(a => a.UserID == userId)
 
-				.Include(a => a.User)
+				//.Include(a => a.User)
 
 				.OrderByDescending(a => a.Timestamp)
 
