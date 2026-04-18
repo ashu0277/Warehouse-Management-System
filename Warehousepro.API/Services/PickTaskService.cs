@@ -25,18 +25,16 @@ namespace WarehousePro.API.Services
 		private readonly ICurrentUserService _currentUserService;
 
 		// ── Minimum stock threshold ───────────────────────────────────────
-
 		// If stock falls below this after picking → low stock notification fires
-
 		private const int MinimumStockThreshold = 10;
 
 		public PickTaskService(
 
-			AppDbContext context,
+		  AppDbContext context,
 
-			IAuditLogService auditLogService,
+		  IAuditLogService auditLogService,
 
-			ICurrentUserService currentUserService)
+		  ICurrentUserService currentUserService)
 
 		{
 
@@ -56,17 +54,17 @@ namespace WarehousePro.API.Services
 
 			return await _context.PickTasks
 
-				.Include(p => p.Order)
+			  .Include(p => p.Order)
 
-				.Include(p => p.Item)
+			  .Include(p => p.Item)
 
-				.Include(p => p.BinLocation).ThenInclude(b => b.Zone)
+			  .Include(p => p.BinLocation).ThenInclude(b => b.Zone)
 
-				.Include(p => p.AssignedTo)
+			  .Include(p => p.AssignedTo)
 
-				.Select(p => MapToResponseDto(p))
+			  .Select(p => MapToResponseDto(p))
 
-				.ToListAsync();
+			  .ToListAsync();
 
 		}
 
@@ -78,19 +76,19 @@ namespace WarehousePro.API.Services
 
 			return await _context.PickTasks
 
-				.Where(p => p.OrderID == orderId)
+			  .Where(p => p.OrderID == orderId)
 
-				.Include(p => p.Order)
+			  .Include(p => p.Order)
 
-				.Include(p => p.Item)
+			  .Include(p => p.Item)
 
-				.Include(p => p.BinLocation).ThenInclude(b => b.Zone)
+			  .Include(p => p.BinLocation).ThenInclude(b => b.Zone)
 
-				.Include(p => p.AssignedTo)
+			  .Include(p => p.AssignedTo)
 
-				.Select(p => MapToResponseDto(p))
+			  .Select(p => MapToResponseDto(p))
 
-				.ToListAsync();
+			  .ToListAsync();
 
 		}
 
@@ -102,19 +100,19 @@ namespace WarehousePro.API.Services
 
 			return await _context.PickTasks
 
-				.Where(p => p.AssignedToUserID == userId)
+			  .Where(p => p.AssignedToUserID == userId)
 
-				.Include(p => p.Order)
+			  .Include(p => p.Order)
 
-				.Include(p => p.Item)
+			  .Include(p => p.Item)
 
-				.Include(p => p.BinLocation).ThenInclude(b => b.Zone)
+			  .Include(p => p.BinLocation).ThenInclude(b => b.Zone)
 
-				.Include(p => p.AssignedTo)
+			  .Include(p => p.AssignedTo)
 
-				.Select(p => MapToResponseDto(p))
+			  .Select(p => MapToResponseDto(p))
 
-				.ToListAsync();
+			  .ToListAsync();
 
 		}
 
@@ -126,15 +124,15 @@ namespace WarehousePro.API.Services
 
 			var task = await _context.PickTasks
 
-				.Include(p => p.Order)
+			  .Include(p => p.Order)
 
-				.Include(p => p.Item)
+			  .Include(p => p.Item)
 
-				.Include(p => p.BinLocation).ThenInclude(b => b.Zone)
+			  .Include(p => p.BinLocation).ThenInclude(b => b.Zone)
 
-				.Include(p => p.AssignedTo)
+			  .Include(p => p.AssignedTo)
 
-				.FirstOrDefaultAsync(p => p.PickTaskID == id);
+			  .FirstOrDefaultAsync(p => p.PickTaskID == id);
 
 			return task == null ? null : MapToResponseDto(task);
 
@@ -145,7 +143,31 @@ namespace WarehousePro.API.Services
 		public async Task<PickTaskResponseDto> CreateAsync(PickTaskCreateDto dto)
 
 		{
+			// ─────────────────────────────────────────────────────────────────
+			// VALIDATION: Check if enough stock is available in the bin
+			// ─────────────────────────────────────────────────────────────────
+			var balance = await _context.InventoryBalances
+			  .FirstOrDefaultAsync(ib =>
+				ib.ItemID == dto.ItemID &&
+				ib.BinID == dto.BinID);
 
+			if (balance == null)
+			{
+				throw new InvalidOperationException(
+				  $"No inventory found for ItemID {dto.ItemID} in BinID {dto.BinID}");
+			}
+
+			var availableQuantity = balance.QuantityOnHand - balance.ReservedQuantity;
+
+			if (availableQuantity < dto.PickQuantity)
+			{
+				throw new InvalidOperationException(
+				  $"Insufficient stock in bin. Available: {availableQuantity}, Requested: {dto.PickQuantity}");
+			}
+
+			// ─────────────────────────────────────────────────────────────────
+			// Create the pick task
+			// ─────────────────────────────────────────────────────────────────
 			var task = new PickTask
 
 			{
@@ -182,15 +204,15 @@ namespace WarehousePro.API.Services
 
 			await _auditLogService.LogAsync(
 
-				userId: _currentUserService.GetUserId(),
+			  userId: _currentUserService.GetUserId(),
 
-				action: "CREATE",
+			  action: "CREATE",
 
-				resource: "PickTask",
+			  resource: "PickTask",
 
-				metadata: $"ID: {task.PickTaskID}, OrderID: {task.OrderID}, " +
+			  metadata: $"ID: {task.PickTaskID}, OrderID: {task.OrderID}, " +
 
-						  $"ItemID: {task.ItemID}, BinID: {task.BinID}, Qty: {task.PickQuantity}"
+					$"ItemID: {task.ItemID}, BinID: {task.BinID}, Qty: {task.PickQuantity}"
 
 			);
 
@@ -206,15 +228,15 @@ namespace WarehousePro.API.Services
 
 			var task = await _context.PickTasks
 
-				.Include(p => p.Order)
+			  .Include(p => p.Order)
 
-				.Include(p => p.Item)
+			  .Include(p => p.Item)
 
-				.Include(p => p.BinLocation).ThenInclude(b => b.Zone)
+			  .Include(p => p.BinLocation).ThenInclude(b => b.Zone)
 
-				.Include(p => p.AssignedTo)
+			  .Include(p => p.AssignedTo)
 
-				.FirstOrDefaultAsync(p => p.PickTaskID == id);
+			  .FirstOrDefaultAsync(p => p.PickTaskID == id);
 
 			if (task == null) return null;
 
@@ -223,9 +245,7 @@ namespace WarehousePro.API.Services
 			task.Status = dto.Status;
 
 			// ══════════════════════════════════════════════════════════════
-
 			// AUTO LOGIC — fires when operator marks task as Picked
-
 			// ══════════════════════════════════════════════════════════════
 
 			if (dto.Status == PickTaskStatus.Picked)
@@ -235,20 +255,17 @@ namespace WarehousePro.API.Services
 				task.CompletedAt = DateTime.UtcNow;
 
 				// ─────────────────────────────────────────────────────────
-
 				// AUTO STEP 1 — Decrease InventoryBalance
-
 				// Find balance record for this item in this bin
-
 				// ─────────────────────────────────────────────────────────
 
 				var balance = await _context.InventoryBalances
 
-					.FirstOrDefaultAsync(ib =>
+				  .FirstOrDefaultAsync(ib =>
 
-						ib.ItemID == task.ItemID &&
+					ib.ItemID == task.ItemID &&
 
-						ib.BinID == task.BinID);
+					ib.BinID == task.BinID);
 
 				if (balance != null)
 
@@ -258,13 +275,13 @@ namespace WarehousePro.API.Services
 
 					balance.QuantityOnHand = Math.Max(0,
 
-						balance.QuantityOnHand - task.PickQuantity);
+					  balance.QuantityOnHand - task.PickQuantity);
 
 					// Release the reservation since it's now physically picked
 
 					balance.ReservedQuantity = Math.Max(0,
 
-						balance.ReservedQuantity - task.PickQuantity);
+					  balance.ReservedQuantity - task.PickQuantity);
 
 					balance.LastUpdated = DateTime.UtcNow;
 
@@ -274,46 +291,40 @@ namespace WarehousePro.API.Services
 
 					await _auditLogService.LogAsync(
 
-						userId: _currentUserService.GetUserId(),
+					  userId: _currentUserService.GetUserId(),
 
-						action: "AUTO_UPDATE",
+					  action: "AUTO_UPDATE",
 
-						resource: "InventoryBalance",
+					  resource: "InventoryBalance",
 
-						metadata: $"Pick completed → " +
+					  metadata: $"Pick completed → " +
 
-								  $"ItemID: {task.ItemID}, BinID: {task.BinID}, " +
+							$"ItemID: {task.ItemID}, BinID: {task.BinID}, " +
 
-								  $"Removed: {task.PickQuantity} units, " +
+							$"Removed: {task.PickQuantity} units, " +
 
-								  $"Remaining OnHand: {balance.QuantityOnHand}"
+							$"Remaining OnHand: {balance.QuantityOnHand}"
 
 					);
 
 					// ─────────────────────────────────────────────────────
-
 					// AUTO STEP 2 — Check total stock across all bins
-
 					// ─────────────────────────────────────────────────────
 
 					var totalAvailableStock = await _context.InventoryBalances
 
-						.Where(ib => ib.ItemID == task.ItemID)
+					  .Where(ib => ib.ItemID == task.ItemID)
 
-						.SumAsync(ib => ib.QuantityOnHand - ib.ReservedQuantity);
+					  .SumAsync(ib => ib.QuantityOnHand - ib.ReservedQuantity);
 
 					if (totalAvailableStock < MinimumStockThreshold)
 
 					{
 
 						// ─────────────────────────────────────────────────
-
 						// AUTO STEP 3 — Create low stock notification
-
 						// Supervisor / Planner will see this and create
-
 						// a ReplenishmentTask manually
-
 						// ─────────────────────────────────────────────────
 
 						_context.Notifications.Add(new Notification
@@ -324,11 +335,11 @@ namespace WarehousePro.API.Services
 
 							Message = $"Low Stock Alert: Item {task.Item?.SKU ?? task.ItemID.ToString()} " +
 
-										  $"has only {totalAvailableStock} units available after picking. " +
+								$"has only {totalAvailableStock} units available after picking. " +
 
-										  $"Minimum threshold is {MinimumStockThreshold}. " +
+								$"Minimum threshold is {MinimumStockThreshold}. " +
 
-										  $"Please create a Replenishment Task.",
+								$"Please create a Replenishment Task.",
 
 							Category = NotificationCategory.Inventory,
 
@@ -344,19 +355,19 @@ namespace WarehousePro.API.Services
 
 						await _auditLogService.LogAsync(
 
-							userId: _currentUserService.GetUserId(),
+						  userId: _currentUserService.GetUserId(),
 
-							action: "LOW_STOCK_ALERT",
+						  action: "LOW_STOCK_ALERT",
 
-							resource: "InventoryBalance",
+						  resource: "InventoryBalance",
 
-							metadata: $"After picking → ItemID: {task.ItemID}, " +
+						  metadata: $"After picking → ItemID: {task.ItemID}, " +
 
-									  $"SKU: {task.Item?.SKU}, " +
+								$"SKU: {task.Item?.SKU}, " +
 
-									  $"TotalAvailable: {totalAvailableStock}, " +
+								$"TotalAvailable: {totalAvailableStock}, " +
 
-									  $"Threshold: {MinimumStockThreshold}"
+								$"Threshold: {MinimumStockThreshold}"
 
 						);
 
@@ -372,13 +383,13 @@ namespace WarehousePro.API.Services
 
 			await _auditLogService.LogAsync(
 
-				userId: _currentUserService.GetUserId(),
+			  userId: _currentUserService.GetUserId(),
 
-				action: "UPDATE",
+			  action: "UPDATE",
 
-				resource: "PickTask",
+			  resource: "PickTask",
 
-				metadata: $"ID: {id}, Status: {task.Status}, AssignedTo: {task.AssignedToUserID}"
+			  metadata: $"ID: {id}, Status: {task.Status}, AssignedTo: {task.AssignedToUserID}"
 
 			);
 
@@ -394,7 +405,7 @@ namespace WarehousePro.API.Services
 
 			var task = await _context.PickTasks
 
-				.FirstOrDefaultAsync(p => p.PickTaskID == id);
+			  .FirstOrDefaultAsync(p => p.PickTaskID == id);
 
 			if (task == null) return false;
 
@@ -406,13 +417,13 @@ namespace WarehousePro.API.Services
 
 			await _auditLogService.LogAsync(
 
-				userId: _currentUserService.GetUserId(),
+			  userId: _currentUserService.GetUserId(),
 
-				action: "DELETE",
+			  action: "DELETE",
 
-				resource: "PickTask",
+			  resource: "PickTask",
 
-				metadata: $"ID: {id}"
+			  metadata: $"ID: {id}"
 
 			);
 
@@ -461,3 +472,4 @@ namespace WarehousePro.API.Services
 	}
 
 }
+

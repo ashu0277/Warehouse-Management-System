@@ -16,6 +16,10 @@ namespace WarehousePro.API.DTOs.Inventory
 
 		[Required]
 
+		public int BinID { get; set; }
+
+		[Required]
+
 		public ReservationReferenceType ReferenceType { get; set; }
 
 		[Required]
@@ -31,3 +35,4 @@ namespace WarehousePro.API.DTOs.Inventory
 	}
 
 }
+

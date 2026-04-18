@@ -36,6 +36,12 @@ namespace WarehousePro.API.Models
 
 		public int ItemID { get; set; }
 
+		// FK → BinLocation (which bin is this reserved from)
+
+		[Required]
+
+		public int BinID { get; set; }
+
 		/// <summary>
 
 		/// Order = reserved for customer order
@@ -70,6 +76,13 @@ namespace WarehousePro.API.Models
 
 		public Item Item { get; set; } = null!;
 
+		// Many StockReservations → One BinLocation
+
+		[ForeignKey("BinID")]
+
+		public BinLocation BinLocation { get; set; } = null!;
+
 	}
 
 }
+

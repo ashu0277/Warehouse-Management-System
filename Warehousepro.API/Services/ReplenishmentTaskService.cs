@@ -24,11 +24,11 @@ namespace WarehousePro.API.Services
 
 		public ReplenishmentTaskService(
 
-			AppDbContext context,
+		  AppDbContext context,
 
-			IAuditLogService auditLogService,
+		  IAuditLogService auditLogService,
 
-			ICurrentUserService currentUserService)
+		  ICurrentUserService currentUserService)
 
 		{
 
@@ -46,15 +46,15 @@ namespace WarehousePro.API.Services
 
 			return await _context.ReplenishmentTasks
 
-				.Include(r => r.Item)
+			  .Include(r => r.Item)
 
-				.Include(r => r.FromBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.FromBin).ThenInclude(b => b.Zone)
 
-				.Include(r => r.ToBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.ToBin).ThenInclude(b => b.Zone)
 
-				.Select(r => MapToResponseDto(r))
+			  .Select(r => MapToResponseDto(r))
 
-				.ToListAsync();
+			  .ToListAsync();
 
 		}
 
@@ -64,17 +64,17 @@ namespace WarehousePro.API.Services
 
 			return await _context.ReplenishmentTasks
 
-				.Where(r => r.ItemID == itemId)
+			  .Where(r => r.ItemID == itemId)
 
-				.Include(r => r.Item)
+			  .Include(r => r.Item)
 
-				.Include(r => r.FromBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.FromBin).ThenInclude(b => b.Zone)
 
-				.Include(r => r.ToBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.ToBin).ThenInclude(b => b.Zone)
 
-				.Select(r => MapToResponseDto(r))
+			  .Select(r => MapToResponseDto(r))
 
-				.ToListAsync();
+			  .ToListAsync();
 
 		}
 
@@ -84,13 +84,13 @@ namespace WarehousePro.API.Services
 
 			var task = await _context.ReplenishmentTasks
 
-				.Include(r => r.Item)
+			  .Include(r => r.Item)
 
-				.Include(r => r.FromBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.FromBin).ThenInclude(b => b.Zone)
 
-				.Include(r => r.ToBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.ToBin).ThenInclude(b => b.Zone)
 
-				.FirstOrDefaultAsync(r => r.ReplenishID == id);
+			  .FirstOrDefaultAsync(r => r.ReplenishID == id);
 
 			return task == null ? null : MapToResponseDto(task);
 
@@ -130,13 +130,13 @@ namespace WarehousePro.API.Services
 
 			await _auditLogService.LogAsync(
 
-				userId: _currentUserService.GetUserId(),
+			  userId: _currentUserService.GetUserId(),
 
-				action: "CREATE",
+			  action: "CREATE",
 
-				resource: "ReplenishmentTask",
+			  resource: "ReplenishmentTask",
 
-				metadata: $"ID: {task.ReplenishID}, ItemID: {task.ItemID}, FromBin: {task.FromBinID}, ToBin: {task.ToBinID}, Qty: {task.Quantity}"
+			  metadata: $"ID: {task.ReplenishID}, ItemID: {task.ItemID}, FromBin: {task.FromBinID}, ToBin: {task.ToBinID}, Qty: {task.Quantity}"
 
 			);
 
@@ -150,35 +150,137 @@ namespace WarehousePro.API.Services
 
 			var task = await _context.ReplenishmentTasks
 
-				.Include(r => r.Item)
+			  .Include(r => r.Item)
 
-				.Include(r => r.FromBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.FromBin).ThenInclude(b => b.Zone)
 
-				.Include(r => r.ToBin).ThenInclude(b => b.Zone)
+			  .Include(r => r.ToBin).ThenInclude(b => b.Zone)
 
-				.FirstOrDefaultAsync(r => r.ReplenishID == id);
+			  .FirstOrDefaultAsync(r => r.ReplenishID == id);
 
 			if (task == null) return null;
 
 			task.Status = dto.Status;
 
+			// ══════════════════════════════════════════════════════════════
+			// AUTO LOGIC — fires when task is marked as Completed
+			// ══════════════════════════════════════════════════════════════
+
 			if (dto.Status == Models.Enums.ReplenishmentStatus.Completed)
+
+			{
 
 				task.CompletedAt = DateTime.UtcNow;
 
+				// ─────────────────────────────────────────────────────────
+				// AUTO STEP 1 — Decrease quantity from source bin (FromBin)
+				// ─────────────────────────────────────────────────────────
+
+				var fromBalance = await _context.InventoryBalances
+
+				  .FirstOrDefaultAsync(ib =>
+
+					ib.ItemID == task.ItemID &&
+
+					ib.BinID == task.FromBinID);
+
+				if (fromBalance != null)
+
+				{
+
+					// Decrease quantity from source bin
+
+					fromBalance.QuantityOnHand = Math.Max(0,
+
+					  fromBalance.QuantityOnHand - task.Quantity);
+
+					fromBalance.LastUpdated = DateTime.UtcNow;
+
+				}
+
+				// ─────────────────────────────────────────────────────────
+				// AUTO STEP 2 — Increase quantity in destination bin (ToBin)
+				// ─────────────────────────────────────────────────────────
+
+				var toBalance = await _context.InventoryBalances
+
+				  .FirstOrDefaultAsync(ib =>
+
+					ib.ItemID == task.ItemID &&
+
+					ib.BinID == task.ToBinID);
+
+				if (toBalance != null)
+
+				{
+
+					// Balance exists → increase quantity
+
+					toBalance.QuantityOnHand += task.Quantity;
+
+					toBalance.LastUpdated = DateTime.UtcNow;
+
+				}
+
+				else
+
+				{
+
+					// First time this item is in destination bin → create new record
+
+					_context.InventoryBalances.Add(new InventoryBalance
+
+					{
+
+						ItemID = task.ItemID,
+
+						BinID = task.ToBinID,
+
+						QuantityOnHand = task.Quantity,
+
+						ReservedQuantity = 0,
+
+						LastUpdated = DateTime.UtcNow
+
+					});
+
+				}
+
+				await _context.SaveChangesAsync();
+
+				// Log the automatic inventory update
+
+				await _auditLogService.LogAsync(
+
+				  userId: _currentUserService.GetUserId(),
+
+				  action: "AUTO_UPDATE",
+
+				  resource: "InventoryBalance",
+
+				  metadata: $"Replenishment completed → " +
+
+						$"ItemID: {task.ItemID}, FromBin: {task.FromBinID}, " +
+
+						$"ToBin: {task.ToBinID}, Moved: {task.Quantity} units"
+
+				);
+
+			}
+
 			await _context.SaveChangesAsync();
 
-			// ── Audit Log ─────────────────────────────────────────────────
+			// ── Audit Log for task update ─────────────────────────────────
 
 			await _auditLogService.LogAsync(
 
-				userId: _currentUserService.GetUserId(),
+			  userId: _currentUserService.GetUserId(),
 
-				action: "UPDATE",
+			  action: "UPDATE",
 
-				resource: "ReplenishmentTask",
+			  resource: "ReplenishmentTask",
 
-				metadata: $"ID: {id}, Status: {task.Status}"
+			  metadata: $"ID: {id}, Status: {task.Status}"
 
 			);
 
@@ -192,7 +294,7 @@ namespace WarehousePro.API.Services
 
 			var task = await _context.ReplenishmentTasks
 
-				.FirstOrDefaultAsync(r => r.ReplenishID == id);
+			  .FirstOrDefaultAsync(r => r.ReplenishID == id);
 
 			if (task == null) return false;
 
@@ -204,13 +306,13 @@ namespace WarehousePro.API.Services
 
 			await _auditLogService.LogAsync(
 
-				userId: _currentUserService.GetUserId(),
+			  userId: _currentUserService.GetUserId(),
 
-				action: "DELETE",
+			  action: "DELETE",
 
-				resource: "ReplenishmentTask",
+			  resource: "ReplenishmentTask",
 
-				metadata: $"ID: {id}"
+			  metadata: $"ID: {id}"
 
 			);
 
